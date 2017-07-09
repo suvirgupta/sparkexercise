@@ -20,11 +20,12 @@ sqlc = SQLContext(sc)
 ## once the schema is set the imported file can be converted to the dataframes
 usr_df = sc.textFile("/user/cloudera/intelli/departments").map(lambda x : x.split(","))
 
-## work similar to namedtuples as discussed earlier in AvroSchema does not change the data type of the rdd
+## work similar to namedtuples as discussed earlier it does not change the data type of the rdd
 ## most of the data type when loaded in default is converted to string format
 ## StructType gives schema names to them hence can be converted to data frames
 
 ## StructType takes an iterable data structure like list for all schemas names
+## data type mentioned here should match the data type of the table loaded else it will give error hence casting cannot be done using this
 schema = StructType([StructField('department_id', StringType(), True),StructField('department_name', StringType(), True) ] )
 
 department_df = sqlc.createDataFrame(usr_df,schema)
@@ -90,11 +91,17 @@ data = sc.sequenceFile("file:///home/cloudera/department3", "org.apache.hadoop.i
 for rec in data.collect():
     print(rec)
 
+
+
+# #********************************File format handlled by SQL Context Parquet, Avro, ORC , Json********************************************************#####
+
+# sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table departments --split-by department_id --warehouse-dir /user/cloudera/intelli --fields-terminated-by '|'  --as-textfile -m 1
+# sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table departments --split-by department_id --warehouse-dir /user/cloudera/intelli/dep --fields-terminated-by '|'  --as-parquetfile -m 1
+
+
 ###### Parquet file format ##########################
-
-
-
-
-
-
-
+## alwa
+data = sqlc.read.parquet('hdfs:///user/cloudera/intelli/dep/departments')
+data.show()
+data1 = sqlc.read.format('org.apache.spark.sql.parquet').load('hdfs:///user/cloudera/intelli/dep/departments')
+data1.show()
