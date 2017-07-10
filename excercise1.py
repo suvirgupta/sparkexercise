@@ -11,7 +11,7 @@ from pyspark.sql.types import *
 ## Sqoop command used to load to hdfs in avro , sequencefile and text file
 
 # spark.driver.extraClassPath /path/to/my.jar ####.set("spark.driver.extraClassPath","<path of the jar file created using sqoop import>")
-conf = (SparkConf().setMaster("local[2]").setAppName("exercise1").set('spark.executor.memory', '2g').set("spark.driver.extraClassPath","file:///home/cloudera/new1/departments.jar"))
+conf = (SparkConf().setMaster("local[2]").setAppName("exercise1").set('spark.executor.memory', '2g')) #.set("spark.driver.extraClassPath","/home/cloudera/Desktop/mysql/mysql-connector-java-5.1.42-bin.jar"))
 sc = SparkContext(conf= conf)
 
 sqlc = SQLContext(sc)
@@ -105,3 +105,48 @@ data = sqlc.read.parquet('hdfs:///user/cloudera/intelli/dep/departments')
 data.show()
 data1 = sqlc.read.format('org.apache.spark.sql.parquet').load('hdfs:///user/cloudera/intelli/dep/departments')
 data1.show()
+
+## Read directly using spark sql
+df = sqlc.sql("SELECT * FROM parquet.`intelli/dep/departments`")
+
+
+# Write to parquet file
+# org.apache.spark.parquet
+data.write.format("org.apache.spark.sql.parquet").mode("error").option("header","true").save("hdfs:///user/cloudera/intelli/dep_wr")
+data.write.parquet("hdfs:///user/cloudera/intelli/dep_wr1")
+
+# sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table departments --split-by department_id --warehouse-dir /user/cloudera/intelli/depsnappy --fields-terminated-by '|'  --as-parquetfile --compress --compression-codec org.apache.hadoop.io.compress.SnappyCodec  -m 1
+# # sqoop import in snappy coded file
+# gzip - org.apache.hadoop.io.compress.GzipCodec
+# bzip2 - org.apache.hadoop.io.compress.BZip2Codec
+# LZO - com.hadoop.compression.lzo.LzopCodec
+# Snappy - org.apache.hadoop.io.compress.SnappyCodec
+# Deflate - org.apache.hadoop.io.compress.DeflateCodec
+
+## setting up codec api in spark sql shell
+sqlc.setConf("spark.sql.parquet.compression.codec","snappy")
+
+# Reading the compressed file from the hdfs
+df_snappy = sqlc.read.parquet("hdfs:///user/cloudera/intelli/depsnappy/departments")
+df_snappy.show()
+
+#writing the compressed file to the local system
+df_snappy.write.format("org.apache.spark.sql.parquet").mode("error").option("compression", None).option("header","true").save("file:///home/cloudera/intelli2/")
+
+## write uncompressed file
+sqlc.setConf("spark.sql.parquet.compression.codec","uncompressed")
+df_snappy.write.format("org.apache.spark.sql.parquet").mode("error").option("header","true").save("file:///home/cloudera/intelli3/")
+
+df_snappy.write.parquet("file:///home/cloudera/intelli3/")
+
+
+
+######Read and write directly from data base ###############################################################
+
+### by default the driver :com.mysql.jdbc.Driver is added to spark config
+## if not added it can be added by setting the spark configration runtime parameters : set("spark.driver.extrClassPath", <location where mysql-connector-jar file is present>)
+df_mysql= sqlc.read.format("jdbc").option("url", "jdbc:mysql://localhost/retail_db").option("driver", "com.mysql.jdbc.Driver").option("dbtable", "departments").option("user", "root").option("password", "cloudera").load()
+
+df_mysql.show()
+
+
