@@ -1,0 +1,142 @@
+
+#############COnnect to the hive shell###########
+### Type hive in the command line ##########
+hive
+quit ; to terminate hive hive shell
+###### connect to the beeline + hive #####
+
+/usr/lib/hive/bin/beeline ### type beeline to connect to beeline client
+!connect jbdc:hive2://localhost:10000 username password org.apache.hive.jdbc.HiveDriver
+
+Create table ebay (auctionid bigint , bid int, bidtime VARCHAR(20), bidder STRING , bidderrate float, openid int, price float )
+Row format delimited
+fields terminated by ','
+lines terminated by '\n'
+stored as textfile;
+
+## can update schema properties by alter statment
+Alter table ebay change auctionid auctionid bigint;
+
+Alter table ebay change auctionid auctionid bigint after bid;
+
+## Can add new cloumn to the schema file
+Alter table ebay add columns (biderate float)
+
+########overwrite existing data in the hive table ####
+load data local inpath '/home/cloudera/Desktop/ebay.csv' overwrite into table ebay;
+
+##### get extended information about the table and its type like hive managed or the external table #########
+describe formatted ebay;
+### Table type is the managed table type here if the table is dropped the data along with the schema is removed from the hdfs
+
+
+## Creating external tables in hive
+create external table  ebay2(auctionid bigint, bid int, bidtime varchar(20), bidder STRING, bidderrate float, openid int, price float)
+row format delimited fields terminated by ','
+lines terminated by '\n'
+stored as textfile
+location 'hdfs:///user/cloudera/hive'
+
+
+#####Loading data to the external tables
+load data local inpath '/home/cloudera/Desktop/ebay.csv' overwrite into table ebay2;
+
+Describe formatted ebay2;
+| Table Type:                   | EXTERNAL_TABLE                                              | NULL
+| SerDe Library:                | org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe          | NULL                  |
+| InputFormat:                  | org.apache.hadoop.mapred.TextInputFormat                    | NULL                  |
+| OutputFormat:                 | org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat  | NULL                  |
+
+## In Extternal tables data is not remaoved from the HDFS on drop table command only the schema part is removed.
+
+######### we can also insert data into the external table using temp created table using comand 'Create temp table'#######
+#### insert overwrite table ebay2 select * from temptable;
+
+
+
+##################################Partitioning ###################################################################################
+
+drop table ebay;
+
+########### dynamic partition###########################
+
+############create temp table###########################
+
+create temporary table temp_ebay (auctionid decimal, bid int, bidtime varchar(20), bidder STRING, bidderrate float, openid int, price float)
+row format delimited fields terminated by ','
+lines terminated by '\n'
+stored as textfile;
+
+load data local inpath '/home/cloudera/Desktop/ebay.csv' into table temp_ebay;
+
+
+### Set up hive cli parameters for dyanmic partitioning
+set hive.exec.dynamic.partition= true;
+set hive.exec.dynamic.partition.mode = nonstrict;
+set hive.exec.max.dynamic.partitions.pernode= 10000;
+
+create table ebay_part ( bid int, bidtime VARCHAR(20), bidder STRING , bidderrate float, openid int, price float )
+partitioned by (auctionid decimal)
+row format delimited fields terminated by ','
+lines terminated by '\n'
+stored as sequencefile;
+
+#### using sequence file one cannot load from local file ###################
+########### the column inthe parttion should be in the last of select query as shown auctionid is in the last of the select query.
+insert into  ebay_part partition(auctionid) select bid, bidtime, bidder, bidderrate,openid,price,auctionid from temp_ebay;
+insert overwrite  ebay_part partition(auctionid) select bid, bidtime, bidder, bidderrate,openid,price,auctionid from temp_ebay;
+
+######################Create index on the table #########################################
+### index using the org.apache.hadoop.hive.ql.index.compact.CompactIndexHandler used for columns that have unique values
+######o another class of the index handler is bitmap which is used when there are no of repeated records inthe column
+
+create index ebay_index
+on table ebay_part (bid) as 'org.apache.hadoop.hive.ql.index.compact.CompactIndexHandler'
+with deferred rebuild;
+
+alter index ebay_index on table ebay_part rebuild;
+
+#############################Static partition###########################################
+1. Create table schema with the partition.
+2. Load data manually into table partition using load data inpath command
+LOAD DATA INPATH '/tmp/logs‘ INTO TABLE logs PARTITION (date='21');
+
+
+
+
+########BUcketing########################################
+###when partition of data creates lot of files and each file gets to a block size of 128mb default leads to wastage of memory
+###hence the concept of bucketing is used here to get data into constant size bucket so that whole data block can be ustilized
+###As well as the preformance of query is also optimised. Bucketing uses hashing algorithm, creates seperate hash table with index to coloumn that is bucketed.
+NOte: If cluster tend to go out of memory while clustering try changing the heap size of the block from default 128mb to some lower value .
+
+
+
+/home/cloudera/Desktop/HIve/Hive-Code-file_data-File-3/sessionfiles/data/data description.txt
+
+
+
+############# New data set new york stacke exchange ############################################
+#####exchang varchar(20), symbo varchar(10),date string, open float, high float, low float, close float,volume bigint, adj_close float
+
+
+create temporary table tmp_nyse ( exchang VARCHAR(20), symbo VARCHAR(10),date string, open float, high float,low float,close float,volume bigint, adj_close float)
+comment 'new temp rable'
+row format delimited fields terminated by '\t'
+lines terminated by '\n'
+tblproperties ("skip.header.line.count"="1")
+
+### tblproperties : skip.header.line.count = 1 is used to remove the header line of the data set before loading into hive .. not required in this case just for the demonstration purpose
+
+
+create table nyse_buct(exchang VARCHAR(20), symbo VARCHAR(10),date string, open float, high float,low float,close float,volume bigint, adj_close float)
+comment 'new bucketed table'
+clustered by (exchang) into 40 buckets
+row format delimited fields terminated by '\t'
+lines terminated by '\n'
+tblproperties ("skip.header.line.count"="1")  ;
+
+set hive.enforce.bucketing = true
+
+from tmp_nyse insert overwrite table nyse_buct select *;
+
