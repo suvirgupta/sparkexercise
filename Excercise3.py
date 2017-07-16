@@ -30,4 +30,8 @@ hqlc.sql("load data local inpath '/home/cloudera/Desktop/NYSE_daily.txt' into ta
 hqlc.sql("select * from nyse_buct3 limit 40").show()
 
 hqlc.sql("describe formatted nyse_buct3").collect()
+###'YYYY-MM-DD HH:MM:SS' or YYYYMMDDHHMMSS
+hqlc.sql("select exchang, symbo, TO_DATE(CAST(UNIX_TIMESTAMP(date, 'YYYY-MM-DD' ) as timestamp)) as StockDate from nyse_buct3 ").show()
+
+
 

@@ -40,7 +40,7 @@ department_df.show()
 ## reason is that sqoop import schema is not detected
 ## one possible alternative is to try running pyspark shell again with jar file genrated during sqoop import
 ## have not tried the solution . First line of the sqoop imported file gives the file format of the import
-text = "org.apache.hadoop.io.Longwritable"
+text = "org.apache.hadoop.io.LongWritable"
 
 dep_seq = sc.sequenceFile("file:///home/cloudera/departments/part-00001", text, text)
 
