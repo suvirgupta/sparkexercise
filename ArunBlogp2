@@ -1,0 +1,42 @@
+
+
+sqoop import --connect "jdbc:mysql://localhost/retail_db" --username root --password cloudera --table products --warehouse-dir /user/cloudera/ --fields-terminated-by '|' --as-textfile
+
+
+hadoop fs -mkdir /user/cloudera/problem2
+hadoop fs -mv /user/cloudera/products /user/cloudera/pr
+
+
+
+product_category_id|product_description|product_id|       product_image|        product_name|product_price
+
+
+df_prid.filter(df_prid.product_price <100).groupBy(col("product_category_id")).agg(max(df_prid.product_price).alias("max Product Price"), countDistinct(df_prid.product_id).alias("prod count"), round(avg(col("product_price")),2).alias("avg price"), min(col("product_price")).alias("min price")).show()
+
+
+sqlc.sql("select product_category_id, max(product_price) as max_price, count(distinct(product_id)) as prod_count,round(avg(product_id),2) as avg_price,  min(product_price) as min_price from df_prid group by product_category_id").show()
+
+
+df_product.filter(df_product["product_price"]<100).map(lambda x: (x.product_category_id,x))
+
+
+df_product.filter(lambda x : x.product_price<100).map(lambda x : (x.product_category_id,(x.product_price, x.product_id)) ).combineByKey((lambda x: (x[0],x[1])), (lambda x,y: (x[0]+y[0],x[1]+y[1]) ), (lambda x,y: (x[0]+y[0],x[1]+y[1] ))).take(10)
+
+
+prodcount =df_product.filter(lambda x : x.product_price<100).map(lambda x : (x.product_category_id,x.product_id) ).distinct().mapValues(lambda x :1 ).reduceByKey(lambda x,y: x+y)
+
+
+sumprice = df_product.filter(lambda x : x.product_price<100).map(lambda x : (x.product_category_id,x.product_price) ).aggregateByKey([0.0,0.0,999999999999.0], (lambda x,y: [max(x[0],y[1]),x[1]+y[1],min(x[2],y[1])]),(lambda x,y: [max(x[0],y[0]),x[1]+y[1],min(x[2],y[2])]))
+
+
+def addit(acc,value):
+	return (max(acc[0],value),acc[1]+value,min(acc[2],value))
+
+def merge(acc1,acc2):
+	return (max(acc1[0],acc2[0]),acc1[1]+acc2[1],min(acc1[2],acc2[2]))
+
+
+sumprice = df_product.filter(lambda x : x.product_price<100).map(lambda x : (x.product_category_id,x.product_price) ).aggregateByKey((0.0,0.0,999999999999.0), addit, merge)
+
+sumprice = df_products.filter(lambda x : x.product_price<100).map(lambda x : (x.product_id,(x.product_price,x.product_category_id)) ).combineByKey((lambda x : (x[0],set([x[1]]) )), (lambda x,y : (x[0]+y[0],x[1]|set([y[1]]))),(lambda x,y:( x[0]+y[0],x[1]|y[1])))
+
