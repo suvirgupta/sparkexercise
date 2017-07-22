@@ -1,0 +1,50 @@
+
+create table products_replica like products;
+
+
+insert into table products_replica select * from products;
+
+
+sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table products_replica --fields-terminated-by '|'
+--lines-terminated-by '\n' --null-non-string -1 --null-string 'NOT-AVAILABLE' --where 'product_id>=1 and product_id<=1000'
+--target-dir '/user/cloudera/problem5/products-text' --as-textfile
+--boundary-query 'select min(product_id), max(product_id) from products_replica where product_id >=1 and product_id <= 1000' --delete-target-dir -m 3
+
+
+sqoop import --connect jdbc:mysql://quickstart.cloudera:3306/retail_db --username root --password cloudera --table products_replica --fields-terminated-by '*' --lines-terminated-by '\n' \
+--null-non-string -1000 --null-string 'NA' --where 'product_id <=  1111' --target-dir '/user/cloudera/problem5/products-text-part1' --as-textfile \
+--boundary-query 'select min(product_id), max(product_id) from products_replica where product_id<= 1111' -m 2
+
+
+sqoop import --connect jdbc:mysql://quickstart.cloudera:3306/retail_db --username root --password cloudera --table products_replica --fields-terminated-by '*' \
+lines-terminated-by '\n' --null-non-string -1000 --null-string 'NA' where 'product_id>1111' --as-textfile --target-dir '/user/cloudera/problem5/products-text-part2'\
+-m 5
+
+sqoop codegen --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table products_replica --outdir '/home/clouders/Desktop'
+
+sqoop merge --new-data '/user/cloudera/problem5/products-text-part2' --onto '/user/cloudera/problem5/products-text-part1' \
+--target-dir '/user/cloudera/problem5/products-text-both-parts' --jar-file 'file://home/cloudera/Desktop/products_replica' --class-name products_replica \
+--merge-key product_id
+
+### if we import without creating job one might have to give the last value in further imports by finding the last value in the table imported
+sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table products_replica --target-dir 'user/cloudera/hive/products' \
+--hive-import --hive-table products_hive --hive-database  retail --incremental append --check-column product_id --last-value 1347;
+
+#### other way to automatically keep track of last balue using  sqoop imports is to create a sqoop job when the first import happens
+#### it will automatically keep tack of the value in the last mdefied section
+
+sqoop job \
+--create hive_sqoop_job \
+-- import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table products_replica \
+--target_dir 'user/cloudera/hive/products' --incremental append \
+--hive-import --hive-table products_hive --hive-database retail --check-column product_id --last-value 0 ;
+
+
+sqoop job -exec hive_sqoop_job
+sqoop job --delete hive_sqoop_job
+sqoop job --list
+sqoop job --show hive_sqoop_job
+
+
+Insert into products_hive values (1380,4,'something 1376','something 2',1.00,'not avaialble',3,'WEAK');
+insert into products_hive values (1381,4,'something 1376','something 2',10.00,'not avaialble',null,'NOT APPLICABLE');
