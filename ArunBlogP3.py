@@ -1,4 +1,3 @@
-
 import os
 
 os.environ['SPARK_HOME'] = 'usr/lib/spark'
