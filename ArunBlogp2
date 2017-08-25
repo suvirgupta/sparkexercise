@@ -29,14 +29,8 @@ prodcount =df_product.filter(lambda x : x.product_price<100).map(lambda x : (x.p
 sumprice = df_product.filter(lambda x : x.product_price<100).map(lambda x : (x.product_category_id,x.product_price) ).aggregateByKey([0.0,0.0,999999999999.0], (lambda x,y: [max(x[0],y[1]),x[1]+y[1],min(x[2],y[1])]),(lambda x,y: [max(x[0],y[0]),x[1]+y[1],min(x[2],y[2])]))
 
 
-def addit(acc,value):
-	return (max(acc[0],value),acc[1]+value,min(acc[2],value))
+product_rdd = sc.textFile("/user/cloudera/problem2/products")
 
-def merge(acc1,acc2):
-	return (max(acc1[0],acc2[0]),acc1[1]+acc2[1],min(acc1[2],acc2[2]))
+x=product_rdd.map(lambda x: x.split('|')).map(lambda x: (int(x[1]),(int(x[0]),float(x[4])))).filter(lambda x : x[1][1]<100)
 
-
-sumprice = df_product.filter(lambda x : x.product_price<100).map(lambda x : (x.product_category_id,x.product_price) ).aggregateByKey((0.0,0.0,999999999999.0), addit, merge)
-
-sumprice = df_products.filter(lambda x : x.product_price<100).map(lambda x : (x.product_id,(x.product_price,x.product_category_id)) ).combineByKey((lambda x : (x[0],set([x[1]]) )), (lambda x,y : (x[0]+y[0],x[1]|set([y[1]]))),(lambda x,y:( x[0]+y[0],x[1]|y[1])))
-
+x.aggregateByKey((0.0,(0,),0.0,99999999.99),(lambda x,y : (max(x[0],y[1]),x[1]+(y[0],),x[2]+y[1],min(x[3],y[1]))),(lambda x,y : (max(x[0],y[0]),x[1]+y[1],x[2]+y[2],min(x[3],y[3])))).take(1)

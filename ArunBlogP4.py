@@ -79,7 +79,7 @@ df_ord_av_sn.write.format("json").save("/user/cloudera/problem5/json-no-compress
 df_ord_av_sn.write.json("/user/cloudera/problem5/json-no-compress2")
 
 
-## best way to compress and write jason format is using sprk context
+## best way to compress and write json format is using sprk context
 
 # convert dataframe to rdd
 rdd_ord_json= df_ord_av_sn.toJSON()

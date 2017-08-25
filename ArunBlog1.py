@@ -41,7 +41,7 @@ orders_rdd = orders_df.map(lambda x : (x[0],(x[1],x[2],x[3])))
 order_items_rdd = order_items_df.map(lambda x : (x[1],(x[0],x[2],x[3],x[4],x[5])))
 orders_items_joined = orders_rdd.join(order_items_rdd)
 ord_1 = orders_items_joined.map(lambda x : (x[0],x[1][0],x[1][1])).map(lambda x : (x[0],x[1][0],x[1][2],x[2][3])).map(lambda x : ((x[1],x[2]),(x[0],x[3])))
-ord_1.combineByKey((lambda x : ((str(x[0]),), x[1])),(lambda x,y : (x[0]+ (str(y[0]),), x[1]+y[1])),(lambda x,y : (x[0]+y[0],x[1]+y[1]))).map(lambda x: (x[0][0],x[0][1],len(set(x[1][0])),x[1][1])).take(1)
+ord_1.combineByKey((lambda x : ((str(x[0]),), x[1])),(lambda x,y : (x[0]+ (str(y[0]),), x[1]+y[1])),(lambda x,y : (x[0]+y[0],x[1]+y[1]))).map(lambda x: (x[0][0],x[0][1],len(set(x[1][0])),x[1][1])).sortBy(lambda x : (-x[2],-x[3])).take(1)
 
 
 
@@ -70,3 +70,4 @@ sqlc.sql("select to_date(from_unixtime(order_date/1000)) as order_formatted_date
 
 sqlc.setConf("spark.sql.parquet.compression.codec","gzip")
 df.write.format("parquet").option("header","true").mode("error")
+
